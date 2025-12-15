@@ -1,6 +1,6 @@
 package main
 
-import {
+import (
 	"fmt"
 	"net/http"
 	"context"
@@ -9,7 +9,7 @@ import {
 	"log"
 
 	"github.com/chromedp/chromedp"
-}
+)
 
 func main() {
 	siteURL := "https://example.com"
