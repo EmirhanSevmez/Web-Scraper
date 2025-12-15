@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,6 +26,15 @@ func main() {
 
 	if !strings.HasPrefix(targetUrl, "http://") && !strings.HasPrefix(targetUrl, "https://") {
 		targetUrl = "http://" + targetUrl
+	}
+
+	domainName := cleanup(targetUrl)
+
+	outputDir := filepath.Join("results", domainName)
+
+	err := os.MkdirAll(outputDir, os.ModePerm)
+	if err != nil {
+		log.Fatalf("Failed to create output directory: %v", err)
 	}
 
 	browserPath, found := launcher.LookPath()
@@ -53,7 +63,7 @@ func main() {
 	var htmlContent string
 	var imageByte []byte
 
-	err := chromedp.Run(ctx,
+	err = chromedp.Run(ctx,
 		chromedp.Navigate(targetUrl),
 		chromedp.Sleep(2*time.Second),
 		chromedp.OuterHTML("html", &htmlContent),
@@ -63,18 +73,29 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	htmlPath := filepath.Join(outputDir, "source.html")
+	screenshotPath := filepath.Join(outputDir, "screenshot.png")
 
 	// Save screenshot to file
-	err = os.WriteFile("screenshot.png", imageByte, 0644)
+	err = os.WriteFile(screenshotPath, imageByte, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	//save HTML content to file
-	err = os.WriteFile("page.html", []byte(htmlContent), 0644)
+	err = os.WriteFile(htmlPath, []byte(htmlContent), 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("HTML content saved as page.html")
-	fmt.Println("Screenshot saved as screenshot.png")
+	fmt.Println("HTML content saved as ", htmlPath)
+	fmt.Println("Screenshot saved as ", screenshotPath)
+}
+
+func cleanup(url string) string {
+	cleaned := strings.ReplaceAll(url, "http://", "")
+	cleaned = strings.ReplaceAll(cleaned, "https://", "")
+	cleaned = strings.ReplaceAll(cleaned, "www.", "")
+	cleaned = strings.Split(cleaned, "/")[0]
+	cleaned = strings.Split(cleaned, "?")[0]
+	return cleaned
 }
