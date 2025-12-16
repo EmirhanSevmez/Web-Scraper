@@ -86,12 +86,15 @@ func scanSite(ctx context.Context, url string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	linkfinder := `Array.from(document.querySelectorAll('a')).map(a => a.href);`
 
+	var links []string
 	var htmlContent string
 	var imageByte []byte
+
 	ctx, cancel := chromedp.NewContext(ctx)
 	defer cancel()
-	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, 35*time.Second)
 	defer cancel()
 
 	err = chromedp.Run(ctx,
@@ -99,12 +102,14 @@ func scanSite(ctx context.Context, url string) {
 		chromedp.Sleep(2*time.Second),
 		chromedp.OuterHTML("html", &htmlContent),
 		chromedp.FullScreenshot(&imageByte, 90),
+		chromedp.Evaluate(linkfinder, &links),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 	htmlPath := filepath.Join(outputDir, "source.html")
 	screenshotPath := filepath.Join(outputDir, "screenshot.png")
+	linksPath := filepath.Join(outputDir, "links.txt")
 
 	err = os.WriteFile(screenshotPath, imageByte, 0644)
 	if err != nil {
@@ -115,6 +120,12 @@ func scanSite(ctx context.Context, url string) {
 		log.Fatal(err)
 	}
 
+	err = os.WriteFile(linksPath, []byte(strings.Join(links, "\n")), 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	fmt.Printf("HTML content saved as %s\n", htmlPath)
 	fmt.Printf("Screenshot saved as %s\n", screenshotPath)
+	fmt.Printf("Links saved as %s\n", linksPath)
 }
