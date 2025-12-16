@@ -36,27 +36,6 @@ func main() {
 
 	}
 
-	browserPath, found := launcher.LookPath()
-	if !found {
-		log.Fatal("Chrome/Chromium browser not found")
-	}
-
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", true),
-		chromedp.ExecPath(browserPath),
-	)
-
-	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer cancel()
-
-	// Create context
-	ctx, cancel := chromedp.NewContext(allocCtx)
-	defer cancel()
-
-	// Create timeout
-	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-
 	for _, targetUrl := range targetUrls {
 		targetUrl = strings.TrimSpace(targetUrl)
 		if targetUrl == "" {
@@ -66,7 +45,7 @@ func main() {
 			targetUrl = "https://" + targetUrl
 		}
 		fmt.Printf("Scanning : %s\n", targetUrl)
-		scanSite(ctx, targetUrl)
+		scanSite(targetUrl)
 	}
 }
 
@@ -79,7 +58,26 @@ func cleanup(url string) string {
 	return cleaned
 }
 
-func scanSite(ctx context.Context, url string) {
+func scanSite(url string) {
+	browserPath, found := launcher.LookPath()
+	if !found {
+		fmt.Println("Error while founding browser path")
+		return
+	}
+
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.ExecPath(browserPath),
+		chromedp.Flag("headless", true),
+		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("ignore-certificate-errors", true),
+	)
+	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancel()
+	ctx, cancel = chromedp.NewContext(ctx)
+	defer cancel()
+	ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
 	cleanedURL := cleanup(url)
 	outputDir := filepath.Join("output", cleanedURL)
 	err := os.MkdirAll(outputDir, os.ModePerm)
@@ -92,11 +90,6 @@ func scanSite(ctx context.Context, url string) {
 	var htmlContent string
 	var imageByte []byte
 
-	ctx, cancel := chromedp.NewContext(ctx)
-	defer cancel()
-	ctx, cancel = context.WithTimeout(ctx, 35*time.Second)
-	defer cancel()
-
 	err = chromedp.Run(ctx,
 		chromedp.Navigate(url),
 		chromedp.Sleep(2*time.Second),
@@ -105,7 +98,8 @@ func scanSite(ctx context.Context, url string) {
 		chromedp.Evaluate(linkfinder, &links),
 	)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Error while opening chromedp")
+		return
 	}
 	htmlPath := filepath.Join(outputDir, "source.html")
 	screenshotPath := filepath.Join(outputDir, "screenshot.png")
@@ -113,16 +107,16 @@ func scanSite(ctx context.Context, url string) {
 
 	err = os.WriteFile(screenshotPath, imageByte, 0644)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Error while writing screenshot: %s\n", url)
 	}
 	err = os.WriteFile(htmlPath, []byte(htmlContent), 0644)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Error while writing html: %s\n", url)
 	}
 
 	err = os.WriteFile(linksPath, []byte(strings.Join(links, "\n")), 0644)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Error while writing links: %s\n", url)
 	}
 
 	fmt.Printf("HTML content saved as %s\n", htmlPath)
